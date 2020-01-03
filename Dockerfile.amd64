@@ -1,4 +1,4 @@
-# Built with arch: amd64 flavor: lxde image: ubuntu:18.04 localbuild: 1
+# Built with arch: amd64 flavor: lxde image: ubuntu:18.04
 #
 ################################################################################
 # base system
@@ -8,7 +8,7 @@ FROM ubuntu:18.04 as system
 
 
 
-RUN sed -i 's#http://archive.ubuntu.com/#http://tw.archive.ubuntu.com/#' /etc/apt/sources.list; 
+RUN sed -i 's#http://archive.ubuntu.com/ubuntu/#mirror://mirrors.ubuntu.com/mirrors.txt#' /etc/apt/sources.list; 
 
 
 # built-in packages
@@ -45,17 +45,21 @@ RUN apt update \
 # Additional packages require ~600MB
 # libreoffice  pinta language-pack-zh-hant language-pack-gnome-zh-hant firefox-locale-zh-hant libreoffice-l10n-zh-tw
 
-# tini for subreap
+# tini to fix subreap
 ARG TINI_VERSION=v0.18.0
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /bin/tini
 RUN chmod +x /bin/tini
 
 # ffmpeg
-RUN mkdir -p /usr/local/ffmpeg \
-    && curl -sSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar xJvf - -C /usr/local/ffmpeg/ --strip 1
+RUN apt update \
+    && apt install -y --no-install-recommends --allow-unauthenticated \
+        ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir /usr/local/ffmpeg \
+    && ln -s /usr/bin/ffmpeg /usr/local/ffmpeg/ffmpeg
 
 # python library
-COPY image/usr/local/lib/web/backend/requirements.txt /tmp/
+COPY rootfs/usr/local/lib/web/backend/requirements.txt /tmp/
 RUN apt-get update \
     && dpkg-query -W -f='${Package}\n' > /tmp/a.txt \
     && apt-get install -y python-pip python-dev build-essential \
@@ -74,7 +78,7 @@ RUN apt-get update \
 FROM ubuntu:18.04 as builder
 
 
-RUN sed -i 's#http://archive.ubuntu.com/#http://tw.archive.ubuntu.com/#' /etc/apt/sources.list; 
+RUN sed -i 's#http://archive.ubuntu.com/ubuntu/#mirror://mirrors.ubuntu.com/mirrors.txt#' /etc/apt/sources.list; 
 
 
 RUN apt-get update \
@@ -94,7 +98,7 @@ RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - \
 COPY web /src/web
 RUN cd /src/web \
     && yarn \
-    && npm run build
+    && yarn build
 
 
 
@@ -105,11 +109,69 @@ FROM system
 LABEL maintainer="fcwu.tw@gmail.com"
 
 COPY --from=builder /src/web/dist/ /usr/local/lib/web/frontend/
-COPY image /
+COPY rootfs /
+RUN ln -sf /usr/local/lib/web/frontend/static/websockify /usr/local/lib/web/frontend/static/novnc/utils/websockify && \
+	chmod +x /usr/local/lib/web/frontend/static/websockify/run
 
+#Install dependencies
+RUN apt-get update && \
+    apt-get install -y git wget python3.6 python3.6-dev \
+    python3-pip virtualenv \
+    xvfb build-essential libssl-dev libffi-dev sudo apt-utils unzip nano
+
+# use host machine ssh pub and prv keys for git.tazi.io 
+ARG ssh_prv_key
+ARG ssh_pub_key
+RUN mkdir -p /root/.ssh
+RUN echo "$ssh_prv_key" > /root/.ssh/id_rsa && \
+    echo "$ssh_pub_key" > /root/.ssh/id_rsa.pub && \
+    chmod 600 /root/.ssh/id_rsa && \
+    chmod 600 /root/.ssh/id_rsa.pub
+RUN ssh-keyscan git.tazi.io >> /root/.ssh/known_hosts
+
+# add user and group for google chrome 
+# RUN groupadd -g 2000 automation
+# RUN useradd -rm -d "/home/automation" -s /bin/bash -g automation -G automation -u 1000 automation
+# RUN echo automation:1234 | chpasswd  
+# RUN passwd -u automation
+# RUN echo automation:automation | chpasswd
+# RUN echo "automation ALL=(ALL) NOPASSWD:ALL">>/etc/sudoers
+
+
+# Set work directory
+WORKDIR /home/automation/
+# Get Google Chrome deb package and install google-chrome 
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -P /home/automation/
+RUN dpkg -i /home/automation/google-chrome-stable_current_amd64.deb; apt-get -fy install
+
+# Clone repository
+RUN git clone --single-branch  --branch develop_intern git@git.tazi.io:tazi_deploy/automation-test-scenarios-kantu.git /home/automation/app
+
+# Get Kantu-XModules
+RUN wget -O kantu_xmodules.zip http://download.ui.vision/x/ui.vision-xmodules-linux-v201908.zip -P /home/automation/
+# Unzip xmodules.zip and move zip file into folder
+RUN unzip /home/automation/kantu_xmodules.zip -d /home/automation/kantu_xmodules
+RUN mkdir -p /home/automation/kantu_xmodules/macros/
+RUN mv /home/automation/kantu_xmodules.zip /home/automation/kantu_xmodules/
+
+
+#mv chrome config to root config
+RUN mkdir -p /root/Downloads
+#RUN mkdir -p /home/automation/Downloads
+RUN mkdir -p /home/automation/.config/google-chrome
+RUN mv /home/automation/app/google-chrome /root/.config/
+RUN mkdir -p /home/automation/app/htmls
+RUN rm -rf /root/.config/google-chrome/Singleton*
+RUN /bin/bash -c "chmod +x -R /home/automation/kantu_xmodules/"
+RUN bash /home/automation/kantu_xmodules/1install.sh
+RUN mv /home/automation/app/marketing_train.csv /home/automation/
+RUN mv /home/automation/app/custchurn_20k.csv /home/automation/
+RUN /bin/bash -c "pip3 install -r /home/automation/app/kantu-tazi/requirements.txt"
+RUN rm -rf /root/.ssh/
+EXPOSE 25000
 EXPOSE 80
 WORKDIR /root
-ENV HOME=/home/ubuntu \
+ENV HOME=/home/automation \
     SHELL=/bin/bash
 HEALTHCHECK --interval=30s --timeout=5s CMD curl --fail http://127.0.0.1:6079/api/health
 ENTRYPOINT ["/startup.sh"]
