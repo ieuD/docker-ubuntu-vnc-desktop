@@ -113,9 +113,65 @@ COPY rootfs /
 RUN ln -sf /usr/local/lib/web/frontend/static/websockify /usr/local/lib/web/frontend/static/novnc/utils/websockify && \
 	chmod +x /usr/local/lib/web/frontend/static/websockify/run
 
+#Install dependencies
+RUN apt-get update && \
+    apt-get install -y git wget python3.6 python3.6-dev \
+    python3-pip virtualenv \
+    xvfb build-essential libssl-dev libffi-dev sudo apt-utils unzip nano
+
+# use host machine ssh pub and prv keys for git.tazi.io 
+ARG ssh_prv_key
+ARG ssh_pub_key
+RUN mkdir -p /root/.ssh
+RUN echo "$ssh_prv_key" > /root/.ssh/id_rsa && \
+    echo "$ssh_pub_key" > /root/.ssh/id_rsa.pub && \
+    chmod 600 /root/.ssh/id_rsa && \
+    chmod 600 /root/.ssh/id_rsa.pub
+RUN ssh-keyscan git.tazi.io >> /root/.ssh/known_hosts
+
+# add user and group for google chrome 
+# RUN groupadd -g 2000 automation
+# RUN useradd -rm -d "/home/automation" -s /bin/bash -g automation -G automation -u 1000 automation
+# RUN echo automation:1234 | chpasswd  
+# RUN passwd -u automation
+# RUN echo automation:automation | chpasswd
+# RUN echo "automation ALL=(ALL) NOPASSWD:ALL">>/etc/sudoers
+
+
+# Set work directory
+WORKDIR /home/automation/
+# Get Google Chrome deb package and install google-chrome 
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -P /home/automation/
+RUN dpkg -i /home/automation/google-chrome-stable_current_amd64.deb; apt-get -fy install
+
+# Clone repository
+RUN git clone --single-branch  --branch develop_intern git@git.tazi.io:tazi_deploy/automation-test-scenarios-kantu.git /home/automation/app
+
+# Get Kantu-XModules
+RUN wget -O kantu_xmodules.zip http://download.ui.vision/x/ui.vision-xmodules-linux-v201908.zip -P /home/automation/
+# Unzip xmodules.zip and move zip file into folder
+RUN unzip /home/automation/kantu_xmodules.zip -d /home/automation/kantu_xmodules
+RUN mkdir -p /home/automation/kantu_xmodules/macros/
+RUN mv /home/automation/kantu_xmodules.zip /home/automation/kantu_xmodules/
+
+
+#mv chrome config to root config
+RUN mkdir -p /root/Downloads
+#RUN mkdir -p /home/automation/Downloads
+RUN mkdir -p /home/automation/.config/google-chrome
+RUN mv /home/automation/app/google-chrome /root/.config/
+RUN mkdir -p /home/automation/app/htmls
+RUN rm -rf /root/.config/google-chrome/Singleton*
+RUN /bin/bash -c "chmod +x -R /home/automation/kantu_xmodules/"
+RUN bash /home/automation/kantu_xmodules/1install.sh
+RUN mv /home/automation/app/marketing_train.csv /home/automation/
+RUN mv /home/automation/app/custchurn_20k.csv /home/automation/
+RUN /bin/bash -c "pip3 install -r /home/automation/app/kantu-tazi/requirements.txt"
+RUN rm -rf /root/.ssh/
+EXPOSE 25000
 EXPOSE 80
 WORKDIR /root
-ENV HOME=/home/ubuntu \
+ENV HOME=/home/automation \
     SHELL=/bin/bash
 HEALTHCHECK --interval=30s --timeout=5s CMD curl --fail http://127.0.0.1:6079/api/health
 ENTRYPOINT ["/startup.sh"]
