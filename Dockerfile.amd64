@@ -159,9 +159,11 @@ RUN mv /home/automation/kantu_xmodules.zip /home/automation/kantu_xmodules/
 RUN mkdir -p /root/Downloads
 #RUN mkdir -p /home/automation/Downloads
 RUN mkdir -p /home/automation/.config/google-chrome
-RUN mv /home/automation/app/google-chrome /root/.config/
+RUN cp -R /home/automation/app/google-chrome /root/.config/
+RUN mv /home/automation/app/google-chrome /home/automation/.config/
 RUN mkdir -p /home/automation/app/htmls
 RUN rm -rf /root/.config/google-chrome/Singleton*
+RUN rm -rf /home/automation/.config/google-chrome/Singleton*
 RUN /bin/bash -c "chmod +x -R /home/automation/kantu_xmodules/"
 RUN bash /home/automation/kantu_xmodules/1install.sh
 RUN mv /home/automation/app/marketing_train.csv /home/automation/
