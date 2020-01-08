@@ -147,7 +147,7 @@ RUN mv /home/automation/kantu_xmodules.zip /home/automation/kantu_xmodules/
 
 #mv chrome config to root config
 RUN mkdir -p /root/Downloads
-#RUN mkdir -p /home/automation/Downloads
+RUN mkdir -p /home/automation/Downloads
 RUN mkdir -p /home/automation/.config/google-chrome
 RUN mkdir -p /root/.config/google-chrome
 RUN cp -R /home/automation/app/google-chrome /root/.config/google-chrome
