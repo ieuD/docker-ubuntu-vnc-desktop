@@ -151,7 +151,8 @@ RUN mv /home/automation/kantu_xmodules.zip /home/automation/kantu_xmodules/
 RUN mkdir -p /root/Downloads
 #RUN mkdir -p /home/automation/Downloads
 RUN mkdir -p /home/automation/.config/google-chrome
-RUN cp -R /home/automation/app/google-chrome /root/.config/
+RUN mkdir -p /root/.config/google-chrome
+RUN cp -R /home/automation/app/google-chrome /root/.config/google-chrome
 RUN mv /home/automation/app/google-chrome /home/automation/.config/
 RUN mkdir -p /home/automation/app/htmls
 RUN rm -rf /root/.config/google-chrome/Singleton*
