@@ -42,8 +42,6 @@ RUN apt update \
     && rm -rf /var/lib/apt/lists/*
  
  
-# Additional packages require ~600MB
-# libreoffice  pinta language-pack-zh-hant language-pack-gnome-zh-hant firefox-locale-zh-hant libreoffice-l10n-zh-tw
 
 # tini to fix subreap
 ARG TINI_VERSION=v0.18.0
